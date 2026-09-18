@@ -2028,6 +2028,16 @@ if [ "$KIND" = secondmate ] && [ -z "$ARG3" ]; then
     fi
   fi
 fi
+# Configured subscription homes validate the fully resolved profile before
+# worktree or endpoint provisioning, including secondmate model defaults.
+node "$FM_ROOT/bin/fm-subscription-check.mjs" "$HARNESS" "$MODEL" "$EFFORT" "${RAW_LAUNCH:-0}" || exit 1
+if [ -f "$FM_HOME/config/subscription-policy.json" ] || [ "${GRIT_SUBSCRIPTION_POLICY:-}" = 1 ]; then
+  unset OPENAI_API_KEY OPENAI_BASE_URL OPENAI_API_BASE CURSOR_API_KEY ANTHROPIC_API_KEY TYPESAFE_API_KEY
+  if [ "$HARNESS" = codex ]; then
+    LAUNCH="codex -c 'model_provider=\"openai\"' -c 'forced_login_method=\"chatgpt\"' ${LAUNCH#codex }"
+  fi
+fi
+
 # Ultra is an explicit native capability, never a Pi thinking-level alias.
 # Validate the fully resolved profile before worktree or endpoint provisioning.
 if [ "$EFFORT" = ultra ]; then
@@ -4306,6 +4316,14 @@ if [ "$KIND" = secondmate ]; then
 fi
 if [ -z "$SPAWN_TRACEPARENT" ] && [ "$RELAUNCH" -eq 1 ]; then
   LAUNCH="unset TRACEPARENT; $LAUNCH"
+fi
+
+# Terminal daemons retain their own environment. Carry the managed policy and
+# forked gate binary across that boundary, including into secondmate homes.
+if [ -f "$FM_HOME/config/subscription-policy.json" ] || [ "${GRIT_SUBSCRIPTION_POLICY:-}" = 1 ]; then
+  grit_policy=${GRIT_SUBSCRIPTION_POLICY_FILE:-$FM_HOME/config/subscription-policy.json}
+  grit_nm_home=${NM_HOME:-$FM_HOME/state/no-mistakes}
+  LAUNCH="HOME=$(shell_quote "$HOME") CODEX_HOME=$(shell_quote "${CODEX_HOME:-$HOME/.codex}") GRIT_SUBSCRIPTION_POLICY=1 GRIT_SUBSCRIPTION_POLICY_FILE=$(shell_quote "$grit_policy") GRIT_SUBSCRIPTION_CHECK=$(shell_quote "$FM_ROOT/bin/fm-subscription-check.mjs") NM_HOME=$(shell_quote "$grit_nm_home") PATH=$(shell_quote "$grit_nm_home:$PATH") $(shell_quote "$(command -v node)") $(shell_quote "$FM_ROOT/bin/fm-subscription-exec.mjs") bash -c $(shell_quote "$LAUNCH")"
 fi
 
 spawn_record_traceparent() {
