@@ -728,7 +728,7 @@ prefetch_task_current_states() {
 }
 
 task_json_lines() {
-  local meta original_meta id kind harness mode yolo project worktree home projects spawn_gen backend target status_log report_path
+  local meta original_meta id kind harness mode yolo ticket_key project worktree home projects spawn_gen backend target status_log report_path
   local remote_host remote_root current_file endpoint_file observation_line index=0
   local pr pr_source event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
   local last_event_raw current_state current_source pending_decision blocked_event report_present=0 pr_from_status
@@ -744,6 +744,7 @@ task_json_lines() {
     harness=$(meta_value "$meta" harness)
     mode=$(meta_value "$meta" mode)
     yolo=$(meta_value "$meta" yolo)
+    ticket_key=$(meta_value "$meta" ticket_key)
     project=$(meta_value "$meta" project)
     worktree=$(meta_value "$meta" worktree)
     home=$(meta_value "$meta" home)
@@ -846,6 +847,7 @@ task_json_lines() {
       --arg mode "$mode" \
       --arg yolo "$yolo" \
       --arg project "$project" \
+      --arg ticket_key "$ticket_key" \
       --arg worktree "$worktree" \
       --arg home "$home" \
       --arg projects "$projects" \
@@ -878,6 +880,7 @@ task_json_lines() {
         mode:($mode // ""),
         yolo:($yolo // ""),
         project:($project // ""),
+        ticketKey:($ticket_key | if . == "" then null else . end),
         spawn_gen:($spawn_gen | if . == "" then null else . end),
         backend:$backend,
         remote:(if $remote_host == "" then null else {host:$remote_host,root:$remote_root} end),
@@ -1942,7 +1945,7 @@ secondmate_landed_from_current_json() {  # <secondmate-current-json-file> <outpu
 }
 
 scout_report_lines() {
-  local report id
+  local report id meta ticket_key project harness model kind
   if [ ! -d "$DATA" ]; then
     jq -n '[]'
     return 0
@@ -1951,7 +1954,13 @@ scout_report_lines() {
     | sort \
     | while IFS= read -r report; do
       id=$(basename "$(dirname "$report")")
-      jq -n --arg id "$id" --arg path "$report" '{id:$id,path:$path}'
+      meta="$STATE/$id.meta"
+      ticket_key=$(meta_value "$meta" ticket_key)
+      project=$(meta_value "$meta" project)
+      harness=$(meta_value "$meta" harness)
+      model=$(meta_value "$meta" model)
+      kind=$(meta_value "$meta" kind)
+      jq -n --arg id "$id" --arg path "$report" --arg ticket_key "$ticket_key" --arg project "$project" --arg harness "$harness" --arg model "$model" --arg kind "$kind" '{id:$id,path:$path} + (if $ticket_key == "" then {} else {ticketKey:$ticket_key} end) + (if $project == "" then {} else {project:$project} end) + (if $harness == "" then {} else {harness:$harness} end) + (if $model == "" then {} else {model:$model} end) + (if $kind == "" then {} else {kind:$kind} end)'
     done \
     | jq -s 'sort_by(.id)'
 }
